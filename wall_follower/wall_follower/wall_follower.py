@@ -24,7 +24,6 @@ class WallFollow(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('viewing_angle', self.default_viewing_angle),
                 ('live_laser_feed', 0),
                 ('frame_id', 'base_link'),
                 ('lidarscan_topic', '/scan'),
@@ -46,11 +45,8 @@ class WallFollow(Node):
 
         # Print ROS parameters
         self.get_logger().info(
-            f'\n viewing_angle: {self.viewing_angle}'
-            f'\n front_degree_angle: {self.front_degree_angle}'
-            f'\n right_degree_angle: {self.right_degree_angle}'
-            f'\n left_degree_angle: {self.left_degree_angle}'
             f'\n live_laser_feed: {self.live_laser_feed}'
+            f'\n PID: [{self.kp, self.ki, self.kd}]'
             f'\n Ts: {self.Ts}'
         )
 
