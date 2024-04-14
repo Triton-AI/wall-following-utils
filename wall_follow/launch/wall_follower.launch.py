@@ -11,7 +11,7 @@ from launch_ros.actions import PushRosNamespace
 
 def generate_launch_description():
     sensor_pkg = 'basestation_launch'
-    some_package = 'wall_follower'
+    some_package = 'wall_follow'
     some_node = 'wall_follower_node'    
     some_config = 'wall_follower_config.yaml'
 
@@ -25,7 +25,7 @@ def generate_launch_description():
         executable=some_node,
         package=some_package,
         output='screen',
-        parameters=[config],
+        parameters=[config]
     )
 
     ## tf2 - lidar_link to laser

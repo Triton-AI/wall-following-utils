@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 from glob import glob
 
-package_name = 'wall_follower'
+package_name = 'wall_follow'
 
 setup(
     name=package_name,
@@ -24,7 +24,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'wall_follower_node = wall_follower.wall_follower:main'
+            'wall_follower_node = wall_follow.wall_follower:main'
         ],
     },
 )
