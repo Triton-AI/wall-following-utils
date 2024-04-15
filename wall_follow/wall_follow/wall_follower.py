@@ -2,7 +2,7 @@ import time
 import os
 
 import numpy as np
-from enum import Enum
+# from enum import Enum
 
 import rclpy
 from rclpy.node import Node
@@ -14,18 +14,14 @@ from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist, PoseWithCovarianceStamped
 from ackermann_msgs.msg import AckermannDriveStamped
 
-class ANGLE_TYPE(Enum):
-    _0To360 = 0
-    _n180To180 = 1
-
 def angle_mod(angle_deg, type):
     output_angle = angle_deg
-    if type == ANGLE_TYPE._0To360:
+    if type == 0:
         if angle_deg > 360:
             output_angle = angle_deg - 360
         elif angle_deg < 0:
             output_angle = angle_deg + 360        
-    elif type == ANGLE_TYPE._n180To180:
+    elif type == 1:
         if angle_deg > 180:
             output_angle = angle_deg - 360
         elif angle_deg < -180:
@@ -56,7 +52,7 @@ class WallFollow(Node):
                 ('laserscan_phase_deg', 0.0),
                 ('scan_angle_type', 0), # 0 is 0_to_360, 1 is -180_to_180
                 ('default_lidar_angle_unit','rad'),
-                ('Ts', 0.02)
+                ('Ts', 0.05)
             ])
         
         # Update ROS parameters from config/launch file
@@ -82,27 +78,27 @@ class WallFollow(Node):
 
         # Setting Parameters
         self.frame_id = self.get_parameter('frame_id').value
-        self.QUEUE_SIZE = 10
-        # self.car_length = 1.5	# projection distance we project car forward. 
+
         self.max_vel = self.get_parameter('max_vel').value 	# used for pid_vel (not much use).
+        self.look_ahead_length = self.max_vel           	# projection distance we project car forward.
 
         self.dist_from_wall = 0.8
 
-        lidarscan_topic =  self.get_parameter('laserscan_topic').value
+        laserscan_topic =  self.get_parameter('laserscan_topic').value
         drive_topic =  self.get_parameter('drive_topic').value
 
         # TODO: create publishers and subscribers
         self.laser_subscriber = self.create_subscription(LaserScan,
-                                                         lidarscan_topic, 
+                                                         laserscan_topic, 
                                                          self.scan_callback, 
-                                                         QoSProfile(depth=self.QUEUE_SIZE, 
-                                                                    reliability=ReliabilityPolicy.RELIABLE)
+                                                         QoSProfile(depth=5, 
+                                                                    reliability=ReliabilityPolicy.BEST_EFFORT)
                                                          )
         self.laser_subscriber
 
         self.drive_publisher = self.create_publisher(AckermannDriveStamped, 
                                                      drive_topic, 
-                                                     self.QUEUE_SIZE)
+                                                     10)
 
         self.current_time = self.get_clock().now().to_msg()
 
@@ -134,12 +130,12 @@ class WallFollow(Node):
         # Start a timer
         self.timer = self.create_timer(self.Ts, self.periodic)
 
-    def get_range(self, range_data, angle_deg):
+    def get_range(self, scan_data, angle_deg):
         """
         Simple helper to return the corresponding range measurement at a given angle. Make sure you take care of NaNs and infs.
 
         Args:
-            range_data: single range array from the LiDAR
+            scan_data: single range array from the LiDAR
             angle: between angle_min and angle_max of the LiDAR
 
         Returns:
@@ -148,12 +144,8 @@ class WallFollow(Node):
         """
         angle_deg = angle_mod(angle_deg, self.angle_type)
         angle_rad = np.deg2rad(angle_deg)
-        index = (angle_rad - range_data.angle_min) // range_data.angle_increment
-
-        if np.isinf(range_data[index]) or np.isnan(range_data[index]):
-            return float('inf')
-        
-        return range_data[index]
+        index = int((angle_rad - scan_data.angle_min) // scan_data.angle_increment)        
+        return scan_data.ranges[index]
 
     def pid_control(self):
         """
@@ -176,9 +168,9 @@ class WallFollow(Node):
         d_term = self.kd * (self.error - self.prev_error) / self.Ts
         desired_steering = p_term + i_term + d_term
 
-        if np.abs(desired_steering) < 10:
+        if np.abs(desired_steering) < np.deg2rad(10):
             desired_vel = self.max_vel
-        elif np.abs(desired_steering) < 20:
+        elif np.abs(desired_steering) < np.deg2rad(20):
             desired_vel = 0.66 * self.max_vel
         else:
             desired_vel = 0.33 *self.max_vel
@@ -192,6 +184,11 @@ class WallFollow(Node):
         # Publish the drive_cmd values to the drive topic
         self.drive_publisher.publish(self.drive_cmd)
 
+        # Print ROS parameters
+        self.get_logger().info(
+            f'\n desired_steering_angle: {desired_steering}'
+            f'\n desired_speed: {desired_vel}'
+        )
 
     def laserscan_angle_unit_conv(self, msg):
         """
@@ -221,9 +218,13 @@ class WallFollow(Node):
             None
         """
         # store laserscan_topic to self.scan
-        self.scan = self.laserscan_angle_unit_conv(msg)
+        # self.scan = self.laserscan_angle_unit_conv(msg)
+        self.scan = msg
         self.lidar_properties_set = True
-        self.num_scans = (self.scan.angle_max - self.scan.angle_min) // self.scan.angle_increment
+        
+        # self.get_logger().info('scan_callback\n')
+
+        self.num_scans = (self.scan.angle_max - self.scan.angle_min) // self.scan.angle_increment            
 
         dist_in_front = self.get_range(self.scan, self.front_deg)
         theta_deg = 30 # deg
@@ -238,25 +239,40 @@ class WallFollow(Node):
         # Calculate future and present distance from right wall
         alpha_r = np.arctan( (dist_offset_right * np.cos(theta_rad) - dist_in_right) / (dist_offset_right * np.sin(theta_rad)) )
         cur_pos_r = dist_in_right * np.cos(alpha_r) # Present Position
-        fut_pos_r = cur_pos_r + self.car_length * np.sin(alpha_r) # projection in Future Position
+        fut_pos_r = cur_pos_r + self.look_ahead_length * np.sin(alpha_r) # projection in Future Position
 
         # Calculate future and present distance from left wall
         alpha_l = np.arctan( (dist_offset_left * np.cos(theta_rad) - dist_in_left) / (dist_offset_left * np.sin(theta_rad)) )
         cur_pos_l = dist_in_left * np.cos(alpha_l)
-        fut_pos_l = cur_pos_l + self.car_length * np.sin(alpha_l)
+        fut_pos_l = cur_pos_l + self.look_ahead_length * np.sin(alpha_l)
 
         # Calculate error
         self.prev_error = self.error
-        self.error = - (fut_pos_r - fut_pos_l)
+        self.error = (fut_pos_r - fut_pos_l)
+        if np.isinf(self.error) or np.isnan(self.error):
+            self.error = 0.0
+
+        # Print ROS parameters
+        self.get_logger().info(
+            f'\n PID_error: {self.error}'
+        )
 
     def periodic(self):
         self.current_time = self.get_clock().now().to_msg()
-        self.pid_control()
+        
+        # Print ROS parameters
+        # self.get_logger().info(
+        #     f'\n num_scans: {self.num_scans}'
+        #     f'\n angle: {self.scan.angle_max, self.scan.angle_min}'
+        # )
 
-def main(args=None):
+        if self.scan.angle_increment != 0 or self.error == 0.0:
+            self.pid_control()
+
+def main():
     logger = rclpy.logging.get_logger('logger')
 
-    rclpy.init(args=args)
+    rclpy.init()
     print("WallFollow Initialized")
     wall_follower_node = WallFollow()
     try:

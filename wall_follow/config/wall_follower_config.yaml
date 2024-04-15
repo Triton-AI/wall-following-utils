@@ -5,17 +5,17 @@
     drive_topic: '/drive'
 
     max_vel: 1.5 # m/s
-    frame_id: 'base_link'
+    frame_id: 'slice_frame' # 'base_link'
 
     # PID gains for steering
-    kP: 0.5
+    kP: 5
     kI: 0.0
     kD: 0.0
 
     # Generally, the front angle of 
     # your car relative to your lidar
     laserscan_phase_deg: 0.0
-    scan_angle_type: 0 # 0 is 0_to_360, 1 is -180_to_180
+    scan_angle_type: 1 # 0 is 0_to_360, 1 is -180_to_180
     default_lidar_angle_unit: 'rad' # 'rad' or 'deg'
 
     # controller sampling time (sec)
