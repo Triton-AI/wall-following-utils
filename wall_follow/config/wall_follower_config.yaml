@@ -4,11 +4,11 @@
     laserscan_topic: '/scanner/scan'
     drive_topic: '/drive'
 
-    max_vel: 1.5 # m/s
+    max_vel: 0.5 # m/s
     frame_id: 'slice_frame' # 'base_link'
 
     # PID gains for steering
-    kP: 5
+    kP: 0.5
     kI: 0.0
     kD: 0.0
 
