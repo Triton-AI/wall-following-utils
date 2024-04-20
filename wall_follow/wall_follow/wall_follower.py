@@ -41,7 +41,6 @@ class WallFollow(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('live_laser_feed', 0),
                 ('frame_id', 'base_link'),
                 ('laserscan_topic', '/scan'),
                 ('drive_topic', '/drive'),
@@ -56,7 +55,6 @@ class WallFollow(Node):
             ])
         
         # Update ROS parameters from config/launch file
-        self.live_laser_feed = self.get_parameter('live_laser_feed').value
         self.Ts = self.get_parameter('Ts').value # controller sampling time
 
         # TODO: set PID gains
@@ -71,7 +69,6 @@ class WallFollow(Node):
 
         # Print ROS parameters
         self.get_logger().info(
-            f'\n live_laser_feed: {self.live_laser_feed}'
             f'\n PID: {self.kp, self.ki, self.kd}'
             f'\n Ts: {self.Ts}'
         )
@@ -161,7 +158,7 @@ class WallFollow(Node):
 
         # TODO: Use kp, ki & kd to implement a PID controller
         if self.ki != 0.0:
-            self.integral_error += self.error
+            self.integral_error += self.error * self.Ts
 
         p_term = self.kp * self.error
         i_term = self.ki * self.integral_error
