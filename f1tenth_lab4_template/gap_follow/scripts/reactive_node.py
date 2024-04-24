@@ -68,13 +68,42 @@ class ReactiveFollowGap(Node):
         self.current_time = self.get_clock().now().to_msg()
 
 
+    def get_range(self, scan_data, angle_deg):
+        """
+        Simple helper to return the corresponding range measurement at a given angle. Make sure you take care of NaNs and infs.
+
+        Args:
+            scan_data: single range array from the LiDAR
+            angle: between angle_min and angle_max of the LiDAR
+
+        Returns:
+            range: range measurement in meters at the given angle
+
+        """
+        angle_deg = angle_mod(angle_deg, self.angle_type)
+        angle_rad = np.deg2rad(angle_deg)
+        index = int((angle_rad - scan_data.angle_min) // scan_data.angle_increment)        
+        return scan_data.ranges[index]
+
+
     def extend_disparities(self, ranges):
         """ Preprocess the LiDAR scan array. Expert implementation includes:
             1.Setting each value to the mean over some window
             2.Rejecting high values (eg. > 3m)
         """
-        derivative=np.diff(ranges)
+        proc_ranges = ranges
+        lidarderivative=np.diff(ranges)
+        halfcarwidth=0.2 #Meters
+        for i in range(0:len(lidarderivative)):
+            if lidarderivative(i)>1: #meters, sort of a magic number for now
+                #calculate how wide an angle of points we want to exclude based on distance
+                anglewidth=halfcarwidth/ranges[i]
+                gap=get_range(self,ranges[i],anglewidth)
+                proc_ranges(range(i-gap),(i+gap)) = 1
+            #basically returning an array with the "no go," angles
         
+        targetangle=list.index(max(ranges))
+
         return proc_ranges
 
     def find_max_gap(self, free_space_ranges):
