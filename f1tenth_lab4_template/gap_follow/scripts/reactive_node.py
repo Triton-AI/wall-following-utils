@@ -1,9 +1,36 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import ReliabilityPolicy, QoSProfile
 
 import numpy as np
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
+import time
+import os
+
+import numpy as np
+# from enum import Enum
+
+
+from std_msgs.msg import Float32MultiArray, MultiArrayDimension, MultiArrayLayout
+from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import Twist, PoseWithCovarianceStamped
+
+def angle_mod(angle_deg, type):
+    output_angle = angle_deg
+    if type == 0:
+        if angle_deg > 360:
+            output_angle = angle_deg - 360
+        elif angle_deg < 0:
+            output_angle = angle_deg + 360        
+    elif type == 1:
+        if angle_deg > 180:
+            output_angle = angle_deg - 360
+        elif angle_deg < -180:
+            output_angle = angle_deg + 360
+    else:
+        return None
+    return output_angle
 
 class ReactiveFollowGap(Node):
     """ 
@@ -13,25 +40,50 @@ class ReactiveFollowGap(Node):
     def __init__(self):
         super().__init__('reactive_node')
         # Topics & Subs, Pubs
-        lidarscan_topic = '/scan'
+        lidarscan_topic = '/scanner/scan'
         drive_topic = '/drive'
 
-        # TODO: Subscribe to LIDAR
-        # TODO: Publish to drive
+        self.frame_id = self.get_parameter('frame_id').value
 
-    def preprocess_lidar(self, ranges):
+        self.max_vel = self.get_parameter('max_vel').value 	# used for pid_vel (not much use).
+        self.look_ahead_length = self.max_vel           	# projection distance we project car forward.
+
+        self.dist_from_wall = 0.8
+
+        laserscan_topic =  self.get_parameter('laserscan_topic').value
+        drive_topic =  self.get_parameter('drive_topic').value
+
+        self.laser_subscriber = self.create_subscription(LaserScan,
+                                                         laserscan_topic, 
+                                                         self.scan_callback, 
+                                                         QoSProfile(depth=5, 
+                                                                    reliability=ReliabilityPolicy.BEST_EFFORT)
+                                                         )
+        self.laser_subscriber
+
+        self.drive_publisher = self.create_publisher(AckermannDriveStamped, 
+                                                     drive_topic, 
+                                                     10)
+
+        self.current_time = self.get_clock().now().to_msg()
+
+
+    def extend_disparities(self, ranges):
         """ Preprocess the LiDAR scan array. Expert implementation includes:
             1.Setting each value to the mean over some window
             2.Rejecting high values (eg. > 3m)
         """
-        proc_ranges = ranges
+        derivative=np.diff(ranges)
+        
         return proc_ranges
 
     def find_max_gap(self, free_space_ranges):
         """ Return the start index & end index of the max gap in free_space_ranges
         """
+        
         return None
-    
+        
+
     def find_best_point(self, start_i, end_i, ranges):
         """Start_i & end_i are start and end indicies of max-gap range, respectively
         Return index of best point in ranges
