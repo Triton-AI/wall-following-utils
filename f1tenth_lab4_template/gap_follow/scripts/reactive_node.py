@@ -99,12 +99,14 @@ class ReactiveFollowGap(Node):
                 #calculate how wide an angle of points we want to exclude based on distance
                 anglewidth=halfcarwidth/ranges[i]
                 gap=get_range(self,ranges[i],anglewidth)
-                proc_ranges(range(i-gap),(i+gap)) = 1
+                proc_ranges(range(i-gap),(i+gap)) = 0
             #basically returning an array with the "no go," angles
         
         targetangle=list.index(max(ranges))
 
-        return proc_ranges
+        
+
+        return targetangle
 
     def find_max_gap(self, free_space_ranges):
         """ Return the start index & end index of the max gap in free_space_ranges
@@ -136,6 +138,51 @@ class ReactiveFollowGap(Node):
         #Find the best point in the gap 
 
         #Publish Drive message
+
+
+    def pid_control(self):
+            '''
+            Based on the calculated error, publish vehicle control
+
+            Args:
+                desired_vel: Desired Velocity
+
+            Returns:
+                None
+        `
+            angle = 0.0
+            '''
+        # TODO: Use kp, ki & kd to implement a PID controller
+        if self.ki != 0.0:
+            self.integral_error += self.error * self.Ts
+
+        p_term = self.kp * self.error
+        i_term = self.ki * self.integral_error
+        d_term = self.kd * (self.error - self.prev_error) / self.Ts
+        desired_steering = p_term + i_term + d_term
+
+        if np.abs(desired_steering) < np.deg2rad(10):
+            desired_vel = self.max_vel
+        elif np.abs(desired_steering) < np.deg2rad(20):
+            desired_vel = 0.66 * self.max_vel
+        else:
+            desired_vel = 0.33 *self.max_vel
+     
+        # TODO: fill in drive message and publish
+        self.prev_drive_cmd = self.drive_cmd
+        self.drive_cmd.header.stamp = self.current_time
+        self.drive_cmd.drive.steering_angle = desired_steering
+        self.drive_cmd.drive.speed = desired_vel
+
+        # Publish the drive_cmd values to the drive topic
+        self.drive_publisher.publish(self.drive_cmd)
+
+        # Print ROS parameters
+        self.get_logger().info(
+            f'\n desired_steering_angle: {desired_steering}'
+            f'\n desired_speed: {desired_vel}'
+        )
+
 
 
 def main(args=None):
