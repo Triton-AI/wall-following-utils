@@ -8,12 +8,7 @@ from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
 import time
 import os
 
-import numpy as np
-# from enum import Enum
-
-
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension, MultiArrayLayout
-from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist, PoseWithCovarianceStamped
 
 def angle_mod(angle_deg, type):
@@ -81,26 +76,43 @@ class ReactiveFollowGap(Node):
         return scan_data.ranges[index]
 
 
-    def extend_disparities(self, msg):
+    def extend_disparities(self, ranges):
         """ Preprocess the LiDAR scan array. Expert implementation includes:
             1.Setting each value to the mean over some window
             2.Rejecting high values (eg. > 3m)
         """
-        self.scan=msg
-        lidarderivative=np.diff(self.scan)
+        safe_angles=ranges
+        lidarderivative=np.diff(ranges)
         halfcarwidth=0.2 #Meters
         i = 0
         for i in range (0,len(lidarderivative)):
             if lidarderivative(i)>1: #meters, sort of a magic number for now
                 #calculate how wide an angle of points we want to exclude based on distance
-                anglewidth=halfcarwidth/self.scan[i]
+                anglewidth=halfcarwidth/ranges[i]
                 gap=anglewidth/360
-                self.scan[range(i-gap),(i+gap)] = 0
+                safe_angles[range(i-gap),(i+gap)] = 0
             #basically returning an array with the "no go," angles
         
-        targetAngle=list.index(max(self.scan))
+        targetAngle=list.index(max(safe_angles))
 
         return targetAngle
+    
+    def simple_control(self,targetAngle):
+
+        if targetAngle>45:
+            targetAngle=45
+
+        if targetAngle<45:
+            targetAngle=45
+        
+        self.drive_cmd.header.stamp = self.current_time
+        self.drive_cmd.drive.steering_angle = targetAngle
+        self.drive_cmd.drive.speed = 0.1
+
+        # Publish the drive_cmd values to the drive topic
+        self.drive_publisher.publish(self.drive_cmd)
+
+
 
 
     def pid_control(self):
@@ -115,10 +127,11 @@ class ReactiveFollowGap(Node):
         `
             angle = 0.0
             '''
-        # TODO: Use kp, ki & kd to implement a PID controller
-        
+            # TODO: Use kp, ki & kd to implement a PID controller
+            ''' 
         if self.ki != 0.0:
             self.integral_error += self.error * self.Ts
+
 
         p_term = self.kp * self.error
         i_term = self.ki * self.integral_error
@@ -146,7 +159,7 @@ class ReactiveFollowGap(Node):
             f'\n desired_steering_angle: {desired_steering}'
             f'\n desired_speed: {desired_vel}'
         )
-
+'''
 
 
 def main():
