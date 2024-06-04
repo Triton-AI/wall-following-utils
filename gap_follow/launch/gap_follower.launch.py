@@ -16,11 +16,11 @@ def generate_launch_description():
     some_node = 'ReactiveFollowGap'    
     some_config = 'gap_follower_config.yaml'
 
-   # ld = LaunchDescription()
-   # config = os.path.join(
-   #     get_package_share_directory(some_package), # change to "some_package" for local testing usage
-   #     'config',
-   #     some_config)
+    ld = LaunchDescription()
+    config = os.path.join(
+        get_package_share_directory(some_package), # change to "some_package" for local testing usage
+        'config',
+        some_config)
         
     pid_node=Node(
         executable=some_node,

@@ -34,7 +34,12 @@ class ReactiveFollowGap(Node):
         # Topics & Subs, Pubs
         lidarscan_topic = '/scanner/scan'
         drive_topic = '/drive'
+        self.declare_parameter('frame_id', 'laser_frame')
+        self.declare_parameter('max_vel', 1.0)  # Example default value
+        self.declare_parameter('laserscan_topic', '/scanner/scan')
+        self.declare_parameter('drive_topic', '/drive')
 
+        # Load parameters
         self.frame_id = self.get_parameter('frame_id').value
 
         self.max_vel = self.get_parameter('max_vel').value 	# used for pid_vel (not much use).
@@ -77,16 +82,13 @@ class ReactiveFollowGap(Node):
 
 
     def extend_disparities(self, ranges):
-        """ Preprocess the LiDAR scan array. Expert implementation includes:
-            1.Setting each value to the mean over some window
-            2.Rejecting high values (eg. > 3m)
-        """
         safe_angles=ranges
-        lidarderivative=np.diff(ranges)
+
+        lidarderivative=np.diff(safe_angles)
         halfcarwidth=0.2 #Meters
         i = 0
         for i in range (0,len(lidarderivative)):
-            if lidarderivative(i)>1: #meters, sort of a magic number for now
+            if numpy.absolute(lidarderivative(i)>1): #meters, sort of a magic number for now
                 #calculate how wide an angle of points we want to exclude based on distance
                 anglewidth=halfcarwidth/ranges[i]
                 gap=anglewidth/360
