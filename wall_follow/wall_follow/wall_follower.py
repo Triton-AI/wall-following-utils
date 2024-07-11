@@ -43,7 +43,7 @@ class WallFollow(Node):
             parameters=[
                 ('frame_id', 'base_link'),
                 ('laserscan_topic', '/scan'),
-                ('drive_topic', '/drive'),
+                ('drive_topic', '/ackermann_cmd'),
                 ('max_vel', 1.0),
                 ('kP', 0.5),
                 ('kI', 0.0),
